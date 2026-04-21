@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useFirebaseCollection } from './hooks/useFirebase';
+import { useAllCollection } from './hooks/useAllCollection';
 import { useAuth } from './hooks/useAuth';
 import Login from './components/Login';
 import Sidebar from './components/Sidebar';
@@ -7,6 +8,7 @@ import Header from './components/Header';
 import Dashboard from './components/Dashboard';
 import TicketsView from './components/TicketsView';
 import NotesView from './components/NotesView';
+import TeamView from './components/TeamView';
 import TicketModal from './components/TicketModal';
 import ContactModal from './components/ContactModal';
 import ExportModal from './components/ExportModal';
@@ -21,6 +23,10 @@ export default function App() {
     // Solo iniciar las suscripciones si hay un usuario logueado
     const { data: ticketsUnsorted, addOrUpdateItem: saveTicket, deleteItem: removeTicket } = useFirebaseCollection('tickets', user?.uid);
     const { data: notesUnsorted, addOrUpdateItem: saveNote, deleteItem: removeNote } = useFirebaseCollection('notes', user?.uid);
+
+    // Colecciones globales para observabilidad de equipo
+    const { data: allTickets } = useAllCollection('tickets');
+    const { data: allUsers } = useAllCollection('users');
 
     const tickets = [...ticketsUnsorted].sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
     const notes = [...notesUnsorted].sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -225,6 +231,13 @@ export default function App() {
                             setNotes={handleSetNotes}
                             showToast={showToast}
                             openDeleteConfirm={openDeleteConfirm}
+                        />
+                    )}
+                    {currentView === 'equipo' && (
+                        <TeamView 
+                            allTickets={allTickets}
+                            allUsers={allUsers}
+                            currentUserId={user?.uid}
                         />
                     )}
                 </div>

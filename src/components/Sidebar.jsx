@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { LayoutDashboard, Ticket, StickyNote, BarChart2, FileBarChart, Database, Download, Upload, Wifi, WifiOff } from 'lucide-react';
+import { LayoutDashboard, Ticket, StickyNote, BarChart2, FileBarChart, Database, Download, Upload, Wifi, WifiOff, Users } from 'lucide-react';
 
 function UserAvatar({ email }) {
     const initials = email 
@@ -92,6 +92,13 @@ export default function Sidebar({ currentView, setCurrentView, openExportModal, 
                 >
                     <StickyNote className="w-5 h-5" /> 
                     <span className="flex-1 text-left">Notas</span>
+                </button>
+                <button 
+                    onClick={() => setCurrentView('equipo')}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${currentView === 'equipo' ? 'bg-blue-600/20 text-blue-400 font-medium shadow-sm' : 'hover:bg-slate-800 hover:text-white'}`}
+                >
+                    <Users className="w-5 h-5" /> 
+                    <span className="flex-1 text-left">Equipo</span>
                 </button>
 
                 {criticalCount > 0 && (
