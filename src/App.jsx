@@ -185,6 +185,11 @@ export default function App() {
                 exportBackup={exportBackup}
                 importBackup={importBackup}
                 onLogout={logout}
+                user={user}
+                ticketCounts={{
+                    active: tickets.filter(t => t.status !== 'Resuelto').length,
+                    critical: tickets.filter(t => (t.priority === 'Crítica' || t.priority === 'Alta') && t.status !== 'Resuelto').length
+                }}
             />
 
             <main className="flex-1 flex flex-col overflow-hidden relative">
