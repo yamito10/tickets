@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Copy, X, Wand2, Cpu, Calendar, CheckCircle2, User, PlusCircle, Trash2, Users, FileText, Maximize2, Minimize2, Send, PhoneCall, Edit3 } from 'lucide-react';
+import { Copy, X, Wand2, Sparkles, Loader2, Calendar, CheckCircle2, User, PlusCircle, Trash2, Users, FileText, Maximize2, Minimize2, Send, PhoneCall, Edit3 } from 'lucide-react';
 import { getPriorityStyle, generateId } from '../utils/helpers';
+import { parseWithGemini } from '../utils/geminiParser';
 
 export default function TicketModal({ isVisible, onClose, ticketData, onSave, onDelete, onOpenContact, showToast }) {
     const isNew = !ticketData;
@@ -30,6 +31,7 @@ export default function TicketModal({ isVisible, onClose, ticketData, onSave, on
     const [comments, setComments] = useState([]);
     const [templateText, setTemplateText] = useState('');
     const [newComment, setNewComment] = useState('');
+    const [isProcessing, setIsProcessing] = useState(false);
 
     useEffect(() => {
         if (isVisible) {
@@ -87,84 +89,38 @@ export default function TicketModal({ isVisible, onClose, ticketData, onSave, on
 
     if (!isVisible) return null;
 
-    const handleProcessTemplate = () => {
+    const handleProcessTemplate = async () => {
         if (!templateText.trim()) {
-            showToast('Por favor pega una plantilla válida primero', true);
+            showToast('Por favor pega un texto válido primero', true);
             return;
         }
 
-        const lines = templateText.split('\n');
-        const dataMap = {};
+        setIsProcessing(true);
+        try {
+            const parsed = await parseWithGemini(templateText);
 
-        lines.forEach(line => {
-            const colonIndex = line.indexOf(':');
-            if (colonIndex > -1) {
-                let key = line.substring(0, colonIndex).trim();
-                key = key.replace(/[\u200B-\u200D\uFEFF]/g, '').trim(); 
-                let val = line.substring(colonIndex + 1).trim();
-                if (val.endsWith(',')) val = val.slice(0, -1).trim();
-                dataMap[key.toLowerCase()] = val;
-            }
-        });
+            if (parsed.cuenta) setAccount(parsed.cuenta);
+            if (parsed.razonSocial) setCustomerCompany(parsed.razonSocial);
+            if (parsed.titulo) setTitle(parsed.titulo);
+            if (parsed.contacto) setCustomerName(parsed.contacto);
+            if (parsed.telefono) setCustomerPhone(parsed.telefono);
+            if (parsed.email) setCustomerEmail(parsed.email);
+            if (parsed.horarioInicio) setCustomerStartTime(parsed.horarioInicio);
+            if (parsed.horarioFin) setCustomerEndTime(parsed.horarioFin);
+            if (parsed.prioridad) setPriority(parsed.prioridad);
 
-        const findValue = (possibleKeys) => {
-            for (let key of Object.keys(dataMap)) {
-                if (possibleKeys.some(pk => key.includes(pk.toLowerCase()))) {
-                    return dataMap[key];
-                }
-            }
-            return '';
-        };
+            let descripcionCompleta = '';
+            if (parsed.descripcion) descripcionCompleta += parsed.descripcion;
+            if (parsed.nota) descripcionCompleta += `\n\nNOTA ADICIONAL:\n${parsed.nota}`;
+            if (descripcionCompleta) setDescription(descripcionCompleta.trim());
 
-        const cuenta = findValue(['cuenta']);
-        const razonSocial = findValue(['razón social', 'razon social', 'titular']);
-        const falla = findValue(['que falla presenta', 'falla presenta', 'qué falla presenta']);
-        const nota = findValue(['nota']);
-        const celular = findValue(['teléfono celular', 'telef celular']);
-        const email = findValue(['e-mail', 'email', 'correo']);
-        const contacto = findValue(['contacto para seguimiento', 'quién se comunica', 'quien se comunica']);
-        const horario = findValue(['horario de atención en sitio', 'horario de atención']);
-
-        if (cuenta) setAccount(cuenta);
-        if (razonSocial) setCustomerCompany(razonSocial);
-        if (falla) setTitle(falla);
-        if (contacto) setCustomerName(contacto);
-        if (celular) setCustomerPhone(celular);
-        if (email) setCustomerEmail(email);
-
-        if (horario) {
-            if (horario.includes('24')) {
-                setCustomerStartTime('00:00');
-                setCustomerEndTime('23:59');
-            } else {
-                const timeRegex = /(\d{1,2})(?:\s*:\s*(\d{2}))?\s*(am|pm|hrs)?/gi;
-                const matches = [...horario.matchAll(timeRegex)];
-                
-                if (matches.length >= 2) {
-                    const parseMatch = (m) => {
-                        let h = parseInt(m[1], 10);
-                        let min = m[2] || '00';
-                        let modifier = m[3] ? m[3].toLowerCase() : null;
-                        
-                        if (modifier === 'pm' && h < 12) h += 12;
-                        if (modifier === 'am' && h === 12) h = 0;
-                        if (h > 23) h = 23; 
-                        
-                        return `${String(h).padStart(2, '0')}:${min}`;
-                    };
-                    
-                    setCustomerStartTime(parseMatch(matches[0]));
-                    setCustomerEndTime(parseMatch(matches[1]));
-                }
-            }
+            showToast('✨ IA procesó el texto y auto-completó los campos');
+        } catch (error) {
+            console.error('Error con Gemini:', error);
+            showToast(error.message || 'Error al procesar con IA', true);
+        } finally {
+            setIsProcessing(false);
         }
-
-        let descripcionCompleta = '';
-        if (falla) descripcionCompleta += `FALLA REPORTADA:\n${falla}\n\n`;
-        if (nota) descripcionCompleta += `NOTA DE SEGUIMIENTO:\n${nota}`;
-        
-        setDescription(descripcionCompleta.trim());
-        showToast('Plantilla procesada y campos auto-completados');
     };
 
     const handleCopySummary = () => {
@@ -314,14 +270,23 @@ export default function TicketModal({ isVisible, onClose, ticketData, onSave, on
                     <div className={`flex-1 p-6 border-r border-slate-100 space-y-6 overflow-y-auto transition-all duration-300 ${isBitacoraExpanded ? 'hidden' : ''}`}>
                         
                         {isNew && (
-                            <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
+                            <div className="p-4 bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl relative overflow-hidden">
+                                {isProcessing && (
+                                    <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-10 rounded-xl">
+                                        <div className="flex flex-col items-center gap-3">
+                                            <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
+                                            <span className="text-sm font-semibold text-indigo-700">Gemini IA analizando texto...</span>
+                                        </div>
+                                    </div>
+                                )}
                                 <label className="block text-sm font-semibold text-indigo-800 mb-2 flex items-center gap-2">
-                                    <Wand2 className="w-4 h-4" /> Autocompletar desde Sistema Institucional
+                                    <Sparkles className="w-4 h-4 text-purple-500" /> Autocompletar con Inteligencia Artificial
                                 </label>
-                                <textarea rows="3" className="w-full px-3 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none resize-none text-xs text-slate-600 font-mono mb-2" placeholder="Pega aquí la plantilla completa..." value={templateText} onChange={(e) => setTemplateText(e.target.value)}></textarea>
+                                <p className="text-[11px] text-indigo-600/70 mb-2">Pega cualquier texto: plantillas, correos, mensajes de WhatsApp, texto libre... la IA lo interpreta automáticamente.</p>
+                                <textarea rows="4" className="w-full px-3 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none resize-none text-xs text-slate-600 font-mono mb-2 bg-white/70" placeholder="Pega aquí cualquier texto con datos del cliente y la IA extraerá la información..." value={templateText} onChange={(e) => setTemplateText(e.target.value)} disabled={isProcessing}></textarea>
                                 <div className="flex justify-end">
-                                    <button type="button" onClick={handleProcessTemplate} className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-2 shadow-sm">
-                                        <Cpu className="w-3 h-3" /> Procesar Plantilla
+                                    <button type="button" onClick={handleProcessTemplate} disabled={isProcessing} className="px-4 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-medium rounded-lg transition-all flex items-center gap-2 shadow-sm disabled:opacity-50">
+                                        <Sparkles className="w-3 h-3" /> Procesar con IA
                                     </button>
                                 </div>
                             </div>
