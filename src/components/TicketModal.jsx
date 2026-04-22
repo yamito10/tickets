@@ -98,29 +98,101 @@ export default function TicketModal({ isVisible, onClose, ticketData, onSave, on
         setIsProcessing(true);
         try {
             const parsed = await parseWithGemini(templateText);
-
-            if (parsed.cuenta) setAccount(parsed.cuenta);
-            if (parsed.razonSocial) setCustomerCompany(parsed.razonSocial);
-            if (parsed.titulo) setTitle(parsed.titulo);
-            if (parsed.contacto) setCustomerName(parsed.contacto);
-            if (parsed.telefono) setCustomerPhone(parsed.telefono);
-            if (parsed.email) setCustomerEmail(parsed.email);
-            if (parsed.horarioInicio) setCustomerStartTime(parsed.horarioInicio);
-            if (parsed.horarioFin) setCustomerEndTime(parsed.horarioFin);
-            if (parsed.prioridad) setPriority(parsed.prioridad);
-
-            let descripcionCompleta = '';
-            if (parsed.descripcion) descripcionCompleta += parsed.descripcion;
-            if (parsed.nota) descripcionCompleta += `\n\nNOTA ADICIONAL:\n${parsed.nota}`;
-            if (descripcionCompleta) setDescription(descripcionCompleta.trim());
-
-            showToast('✨ IA procesó el texto y auto-completó los campos');
+            applyParsedData(parsed, '✨ IA procesó el texto y auto-completó los campos');
         } catch (error) {
             console.error('Error con Gemini:', error);
             showToast(error.message || 'Error al procesar con IA', true);
         } finally {
             setIsProcessing(false);
         }
+    };
+
+    const handleProcessRegex = () => {
+        if (!templateText.trim()) {
+            showToast('Por favor pega un texto válido primero', true);
+            return;
+        }
+        
+        const parsed = {};
+        const lines = templateText.split('\n');
+        
+        let descLines = [];
+        let isDesc = false;
+
+        lines.forEach(line => {
+            const lowerLine = line.toLowerCase();
+            
+            if (isDesc) {
+                descLines.push(line);
+                return;
+            }
+
+            if (lowerLine.includes('cuenta:') || lowerLine.includes('cuenta ')) {
+                parsed.cuenta = line.split(/cuenta[: ]/i)[1]?.trim();
+            } else if (lowerLine.includes('razon social:') || lowerLine.includes('razón social:') || lowerLine.includes('cliente:')) {
+                const parts = line.split(/(raz[oó]n social|cliente)[: ]/i);
+                parsed.razonSocial = parts[parts.length - 1]?.trim();
+            } else if (lowerLine.includes('titulo:') || lowerLine.includes('título:') || lowerLine.includes('asunto:')) {
+                const parts = line.split(/(t[ií]tulo|asunto)[: ]/i);
+                parsed.titulo = parts[parts.length - 1]?.trim();
+            } else if (lowerLine.includes('contacto:') || lowerLine.includes('nombre:')) {
+                const parts = line.split(/(contacto|nombre)[: ]/i);
+                parsed.contacto = parts[parts.length - 1]?.trim();
+            } else if (lowerLine.includes('telefono:') || lowerLine.includes('teléfono:')) {
+                const parts = line.split(/tel[eé]fono[: ]/i);
+                parsed.telefono = parts[parts.length - 1]?.trim();
+            } else if (lowerLine.includes('email:') || lowerLine.includes('correo:')) {
+                const parts = line.split(/(email|correo)[: ]/i);
+                parsed.email = parts[parts.length - 1]?.trim();
+            } else if (lowerLine.includes('horario:')) {
+                const horario = line.split(/horario[: ]/i)[1]?.trim();
+                if (horario) {
+                    const match = horario.match(/(\d{1,2}[:.]\d{2})\s*a\s*(\d{1,2}[:.]\d{2})/i);
+                    if (match) {
+                        parsed.horarioInicio = match[1].replace('.', ':');
+                        parsed.horarioFin = match[2].replace('.', ':');
+                    }
+                }
+            } else if (lowerLine.includes('prioridad:')) {
+                const p = line.split(/prioridad[: ]/i)[1]?.trim().toLowerCase();
+                if (p) {
+                    if (p.includes('baja')) parsed.prioridad = 'Baja';
+                    if (p.includes('media')) parsed.prioridad = 'Media';
+                    if (p.includes('alta')) parsed.prioridad = 'Alta';
+                    if (p.includes('critica') || p.includes('crítica')) parsed.prioridad = 'Crítica';
+                }
+            } else if (lowerLine.includes('descripcion:') || lowerLine.includes('descripción:')) {
+                isDesc = true;
+                const parts = line.split(/(descripci[oó]n)[: ]/i);
+                const firstPart = parts[parts.length - 1]?.trim();
+                if (firstPart) descLines.push(firstPart);
+            }
+        });
+        
+        if (descLines.length > 0) {
+            parsed.descripcion = descLines.join('\n').trim();
+        }
+
+        applyParsedData(parsed, '✅ Texto procesado mediante formato clásico (Sin IA)');
+    };
+
+    const applyParsedData = (parsed, successMessage) => {
+        if (parsed.cuenta) setAccount(parsed.cuenta);
+        if (parsed.razonSocial) setCustomerCompany(parsed.razonSocial);
+        if (parsed.titulo) setTitle(parsed.titulo);
+        if (parsed.contacto) setCustomerName(parsed.contacto);
+        if (parsed.telefono) setCustomerPhone(parsed.telefono);
+        if (parsed.email) setCustomerEmail(parsed.email);
+        if (parsed.horarioInicio) setCustomerStartTime(parsed.horarioInicio);
+        if (parsed.horarioFin) setCustomerEndTime(parsed.horarioFin);
+        if (parsed.prioridad) setPriority(parsed.prioridad);
+
+        let descripcionCompleta = '';
+        if (parsed.descripcion) descripcionCompleta += parsed.descripcion;
+        if (parsed.nota) descripcionCompleta += `\n\nNOTA ADICIONAL:\n${parsed.nota}`;
+        if (descripcionCompleta) setDescription(descripcionCompleta.trim());
+
+        showToast(successMessage);
     };
 
     const handleCopySummary = () => {
@@ -152,24 +224,68 @@ export default function TicketModal({ isVisible, onClose, ticketData, onSave, on
         document.body.removeChild(textArea);
     };
 
+    const getTicketDataToSave = (updatedComments) => {
+        const tData = {
+            title, folio, account, description, status, priority, assignedTime,
+            finalSolution: status === 'Resuelto' ? finalSolution : '',
+            customerCompany, customerName, customerPhone, customerEmail,
+            customerName2: showC2 ? customerName2 : '',
+            customerPhone2: showC2 ? customerPhone2 : '',
+            customerEmail2: showC2 ? customerEmail2 : '',
+            customerStartTime, customerEndTime, l2Assignee,
+            comments: updatedComments,
+            updatedAt: new Date().toISOString()
+        };
+
+        if (status === 'Resuelto') {
+            tData.resolvedAt = (!isNew && ticketData && ticketData.resolvedAt) ? ticketData.resolvedAt : new Date().toISOString();
+        } else {
+            tData.resolvedAt = null;
+        }
+
+        return tData;
+    };
+
     const togglePinComment = (id) => {
-        setComments(prev => prev.map(c => c.id === id ? { ...c, pinned: !c.pinned } : c));
+        const updated = comments.map(c => c.id === id ? { ...c, pinned: !c.pinned } : c);
+        setComments(updated);
+        
+        if (!isNew) {
+            onSave(getTicketDataToSave(updated), false);
+        }
     };
 
     const handleAddComment = () => {
         if (!newComment.trim()) return;
-        setComments(prev => [...prev, {
+        const newC = {
             id: Date.now() + Math.random(),
             text: newComment.trim(),
             date: new Date().toISOString()
-        }]);
+        };
+        const updated = [...comments, newC];
+        setComments(updated);
         setNewComment('');
+
+        if (!isNew) {
+            onSave(getTicketDataToSave(updated), false);
+        }
     };
 
     const handleSubmit = (e) => {
         e.preventDefault();
         
         let updatedComments = [...comments];
+        
+        // Si escribió algo y no le dio al botón de agregar, lo agregamos de todas formas
+        if (newComment.trim()) {
+            updatedComments.push({
+                id: Date.now() + Math.random(),
+                text: newComment.trim(),
+                date: new Date().toISOString()
+            });
+            setNewComment('');
+        }
+
         if (!isNew && ticketData) {
             if (ticketData.status !== status) {
                 updatedComments.push({ id: Date.now() + Math.random(), text: `Registro de Sistema: El estatus cambió de '${ticketData.status}' a '${status}'.`, date: new Date().toISOString(), isSystem: true });
@@ -186,36 +302,7 @@ export default function TicketModal({ isVisible, onClose, ticketData, onSave, on
             updatedComments.push({ id: Date.now() + Math.random(), text: `Registro de Sistema: Ticket creado con estatus '${status}' y prioridad '${priority}'.`, date: new Date().toISOString(), isSystem: true });
         }
 
-        const tData = {
-            title,
-            folio,
-            account,
-            description,
-            status,
-            priority,
-            assignedTime,
-            finalSolution: status === 'Resuelto' ? finalSolution : '',
-            customerCompany,
-            customerName,
-            customerPhone,
-            customerEmail,
-            customerName2: showC2 ? customerName2 : '',
-            customerPhone2: showC2 ? customerPhone2 : '',
-            customerEmail2: showC2 ? customerEmail2 : '',
-            customerStartTime,
-            customerEndTime,
-            l2Assignee,
-            comments: updatedComments,
-            updatedAt: new Date().toISOString()
-        };
-
-        if (status === 'Resuelto') {
-            tData.resolvedAt = (!isNew && ticketData.resolvedAt) ? ticketData.resolvedAt : new Date().toISOString();
-        } else {
-            tData.resolvedAt = null;
-        }
-
-        onSave(tData);
+        onSave(getTicketDataToSave(updatedComments));
     };
 
     const renderComment = (c) => {
@@ -284,7 +371,10 @@ export default function TicketModal({ isVisible, onClose, ticketData, onSave, on
                                 </label>
                                 <p className="text-[11px] text-indigo-600/70 mb-2">Pega cualquier texto: plantillas, correos, mensajes de WhatsApp, texto libre... la IA lo interpreta automáticamente.</p>
                                 <textarea rows="4" className="w-full px-3 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none resize-none text-xs text-slate-600 font-mono mb-2 bg-white/70" placeholder="Pega aquí cualquier texto con datos del cliente y la IA extraerá la información..." value={templateText} onChange={(e) => setTemplateText(e.target.value)} disabled={isProcessing}></textarea>
-                                <div className="flex justify-end">
+                                <div className="flex justify-end gap-2">
+                                    <button type="button" onClick={handleProcessRegex} disabled={isProcessing} className="px-4 py-1.5 bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50 text-xs font-medium rounded-lg transition-all flex items-center gap-2 shadow-sm disabled:opacity-50">
+                                        Procesar (Sin IA)
+                                    </button>
                                     <button type="button" onClick={handleProcessTemplate} disabled={isProcessing} className="px-4 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-medium rounded-lg transition-all flex items-center gap-2 shadow-sm disabled:opacity-50">
                                         <Sparkles className="w-3 h-3" /> Procesar con IA
                                     </button>

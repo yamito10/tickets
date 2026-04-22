@@ -90,7 +90,7 @@ export default function App() {
         setIsTicketModalVisible(true);
     };
 
-    const handleSaveTicket = async (ticketData) => {
+    const handleSaveTicket = async (ticketData, closeModal = true) => {
         if (currentTicketId) {
             await saveTicket({ id: currentTicketId, ...ticketData });
             showToast('Ticket actualizado con éxito en la Nube');
@@ -99,8 +99,10 @@ export default function App() {
             await saveTicket(newTicket);
             showToast('Nuevo ticket creado en la Nube');
         }
-        setIsTicketModalVisible(false);
-        setCurrentTicketId(null);
+        if (closeModal) {
+            setIsTicketModalVisible(false);
+            setCurrentTicketId(null);
+        }
     };
 
     const openDeleteConfirm = (type, id) => {
