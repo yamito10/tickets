@@ -1,4 +1,4 @@
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
 const SYSTEM_PROMPT = `Eres un asistente experto en soporte técnico de un ISP (Proveedor de Servicios de Internet). 
 Tu trabajo es extraer información estructurada de cualquier texto que te proporcionen (plantillas, correos, mensajes de WhatsApp, texto libre, etc.).
@@ -40,10 +40,13 @@ export async function parseWithGemini(rawText) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
+      systemInstruction: {
+        parts: [{ text: SYSTEM_PROMPT }]
+      },
       contents: [
         {
+          role: 'user',
           parts: [
-            { text: SYSTEM_PROMPT },
             { text: `Analiza el siguiente texto y extrae la información:\n\n${rawText}` }
           ]
         }
@@ -51,6 +54,7 @@ export async function parseWithGemini(rawText) {
       generationConfig: {
         temperature: 0.1,
         maxOutputTokens: 1024,
+        responseMimeType: 'application/json',
       }
     })
   });
