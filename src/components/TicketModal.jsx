@@ -120,52 +120,75 @@ export default function TicketModal({ isVisible, onClose, ticketData, onSave, on
         let isDesc = false;
 
         lines.forEach(line => {
-            const lowerLine = line.toLowerCase();
-            
             if (isDesc) {
                 descLines.push(line);
                 return;
             }
 
-            if (lowerLine.includes('cuenta:') || lowerLine.includes('cuenta ')) {
-                parsed.cuenta = line.split(/cuenta[: ]/i)[1]?.trim();
-            } else if (lowerLine.includes('razon social:') || lowerLine.includes('razón social:') || lowerLine.includes('cliente:')) {
-                const parts = line.split(/(raz[oó]n social|cliente)[: ]/i);
-                parsed.razonSocial = parts[parts.length - 1]?.trim();
-            } else if (lowerLine.includes('titulo:') || lowerLine.includes('título:') || lowerLine.includes('asunto:')) {
-                const parts = line.split(/(t[ií]tulo|asunto)[: ]/i);
-                parsed.titulo = parts[parts.length - 1]?.trim();
-            } else if (lowerLine.includes('contacto:') || lowerLine.includes('nombre:')) {
-                const parts = line.split(/(contacto|nombre)[: ]/i);
-                parsed.contacto = parts[parts.length - 1]?.trim();
-            } else if (lowerLine.includes('telefono:') || lowerLine.includes('teléfono:')) {
-                const parts = line.split(/tel[eé]fono[: ]/i);
-                parsed.telefono = parts[parts.length - 1]?.trim();
-            } else if (lowerLine.includes('email:') || lowerLine.includes('correo:')) {
-                const parts = line.split(/(email|correo)[: ]/i);
-                parsed.email = parts[parts.length - 1]?.trim();
-            } else if (lowerLine.includes('horario:')) {
-                const horario = line.split(/horario[: ]/i)[1]?.trim();
-                if (horario) {
-                    const match = horario.match(/(\d{1,2}[:.]\d{2})\s*a\s*(\d{1,2}[:.]\d{2})/i);
-                    if (match) {
-                        parsed.horarioInicio = match[1].replace('.', ':');
-                        parsed.horarioFin = match[2].replace('.', ':');
-                    }
+            const cuentaMatch = line.match(/(?:cuenta)[\s:]+(.*)/i);
+            if (cuentaMatch) {
+                parsed.cuenta = cuentaMatch[1].trim();
+                return;
+            }
+
+            const rsMatch = line.match(/(?:raz[oó]n social|cliente)[\s:]+(.*)/i);
+            if (rsMatch) {
+                parsed.razonSocial = rsMatch[1].trim();
+                return;
+            }
+
+            const titleMatch = line.match(/(?:t[ií]tulo|asunto)[\s:]+(.*)/i);
+            if (titleMatch) {
+                parsed.titulo = titleMatch[1].trim();
+                return;
+            }
+
+            const contactMatch = line.match(/(?:contacto|nombre)[\s:]+(.*)/i);
+            if (contactMatch) {
+                parsed.contacto = contactMatch[1].trim();
+                return;
+            }
+
+            const phoneMatch = line.match(/(?:tel[eé]fono)[\s:]+(.*)/i);
+            if (phoneMatch) {
+                parsed.telefono = phoneMatch[1].trim();
+                return;
+            }
+
+            const emailMatch = line.match(/(?:email|correo)[\s:]+(.*)/i);
+            if (emailMatch) {
+                parsed.email = emailMatch[1].trim();
+                return;
+            }
+
+            const timeMatch = line.match(/(?:horario)[\s:]+(.*)/i);
+            if (timeMatch) {
+                const horario = timeMatch[1].trim();
+                const hm = horario.match(/(\d{1,2}[:.]\d{2})\s*a\s*(\d{1,2}[:.]\d{2})/i);
+                if (hm) {
+                    parsed.horarioInicio = hm[1].replace('.', ':');
+                    parsed.horarioFin = hm[2].replace('.', ':');
                 }
-            } else if (lowerLine.includes('prioridad:')) {
-                const p = line.split(/prioridad[: ]/i)[1]?.trim().toLowerCase();
-                if (p) {
-                    if (p.includes('baja')) parsed.prioridad = 'Baja';
-                    if (p.includes('media')) parsed.prioridad = 'Media';
-                    if (p.includes('alta')) parsed.prioridad = 'Alta';
-                    if (p.includes('critica') || p.includes('crítica')) parsed.prioridad = 'Crítica';
-                }
-            } else if (lowerLine.includes('descripcion:') || lowerLine.includes('descripción:')) {
+                return;
+            }
+
+            const prioMatch = line.match(/(?:prioridad)[\s:]+(.*)/i);
+            if (prioMatch) {
+                const p = prioMatch[1].trim().toLowerCase();
+                if (p.includes('baja')) parsed.prioridad = 'Baja';
+                if (p.includes('media')) parsed.prioridad = 'Media';
+                if (p.includes('alta')) parsed.prioridad = 'Alta';
+                if (p.includes('critica') || p.includes('crítica')) parsed.prioridad = 'Crítica';
+                return;
+            }
+
+            const descMatch = line.match(/(?:descripci[oó]n)[\s:]*(.*)/i);
+            if (descMatch) {
                 isDesc = true;
-                const parts = line.split(/(descripci[oó]n)[: ]/i);
-                const firstPart = parts[parts.length - 1]?.trim();
-                if (firstPart) descLines.push(firstPart);
+                if (descMatch[1].trim()) {
+                    descLines.push(descMatch[1].trim());
+                }
+                return;
             }
         });
         
