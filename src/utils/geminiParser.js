@@ -1,4 +1,4 @@
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent';
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
 
 const SYSTEM_PROMPT = `Eres un asistente experto en soporte técnico de un ISP (Proveedor de Servicios de Internet). 
 Tu trabajo es extraer información estructurada de cualquier texto que te proporcionen (plantillas, correos, mensajes de WhatsApp, texto libre, etc.).

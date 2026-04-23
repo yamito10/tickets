@@ -131,13 +131,13 @@ export default function TicketModal({ isVisible, onClose, ticketData, onSave, on
                 return;
             }
 
-            const rsMatch = line.match(/(?:raz[oó]n social|cliente)[\s:]+(.*)/i);
+            const rsMatch = line.match(/(?:rs|raz[oó]n social|cliente)[\s:]+(.*)/i);
             if (rsMatch) {
                 parsed.razonSocial = rsMatch[1].trim();
                 return;
             }
 
-            const titleMatch = line.match(/(?:t[ií]tulo|asunto)[\s:]+(.*)/i);
+            const titleMatch = line.match(/(?:falla|t[ií]tulo|asunto|problema)[\s:]+(.*)/i);
             if (titleMatch) {
                 parsed.titulo = titleMatch[1].trim();
                 return;
@@ -164,10 +164,14 @@ export default function TicketModal({ isVisible, onClose, ticketData, onSave, on
             const timeMatch = line.match(/(?:horario)[\s:]+(.*)/i);
             if (timeMatch) {
                 const horario = timeMatch[1].trim();
+                // Intentar extraer formato HH:MM
                 const hm = horario.match(/(\d{1,2}[:.]\d{2})\s*a\s*(\d{1,2}[:.]\d{2})/i);
                 if (hm) {
                     parsed.horarioInicio = hm[1].replace('.', ':');
                     parsed.horarioFin = hm[2].replace('.', ':');
+                } else {
+                    // Si no tiene formato estricto HH:MM, lo guardamos en notas adicionales para no perderlo
+                    parsed.nota = (parsed.nota ? parsed.nota + '\n' : '') + `Horario original: ${horario}`;
                 }
                 return;
             }
