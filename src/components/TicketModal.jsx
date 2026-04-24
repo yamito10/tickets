@@ -104,11 +104,20 @@ export default function TicketModal({ isVisible, onClose, ticketData, onSave, on
                 applyParsedData(parsed, '✨ IA procesó el texto y auto-completó los campos');
             } else {
                 console.error('[TicketModal] Respuesta inesperada:', parsed);
-                showToast('La IA devolvió una respuesta inesperada', true);
+                // Fallback a regex
+                handleProcessRegex();
+                showToast('⚠️ IA devolvió respuesta inesperada. Se usó procesamiento clásico como respaldo.', true);
             }
         } catch (error) {
-            console.error('[TicketModal] Error con Gemini:', error);
-            showToast(error.message || 'Error al procesar con IA', true);
+            console.error('[TicketModal] Error con Gemini, usando fallback regex:', error);
+            // Fallback automático a regex cuando Gemini falla
+            handleProcessRegex();
+            const isQuotaError = error.message && error.message.includes('429');
+            if (isQuotaError) {
+                showToast('⚠️ Cuota de IA excedida. Se procesó con el método clásico como respaldo.', true);
+            } else {
+                showToast('⚠️ IA no disponible. Se procesó con el método clásico.', true);
+            }
         } finally {
             setIsProcessing(false);
         }
@@ -132,19 +141,19 @@ export default function TicketModal({ isVisible, onClose, ticketData, onSave, on
                 return;
             }
 
-            const cuentaMatch = line.match(/(?:cuenta)[\s:]+(.*)/i);
+            const cuentaMatch = line.match(/(?:cuenta|cta)[:\s]+(.*)/i);
             if (cuentaMatch) {
                 parsed.cuenta = cuentaMatch[1].trim();
                 return;
             }
 
-            const rsMatch = line.match(/(?:rs|raz[oó]n social|cliente)[\s:]+(.*)/i);
+            const rsMatch = line.match(/(?:rs|raz[oó]n\s*social|cliente|empresa)[:\s]+(.*)/i);
             if (rsMatch) {
                 parsed.razonSocial = rsMatch[1].trim();
                 return;
             }
 
-            const titleMatch = line.match(/(?:falla|t[ií]tulo|asunto|problema)[\s:]+(.*)/i);
+            const titleMatch = line.match(/(?:t[ií]tulo(?:\s+de(?:l)?\s+reporte)?|falla|asunto|problema|reporte)[:\s]+(.*)/i);
             if (titleMatch) {
                 parsed.titulo = titleMatch[1].trim();
                 return;
@@ -168,7 +177,7 @@ export default function TicketModal({ isVisible, onClose, ticketData, onSave, on
                 return;
             }
 
-            const timeMatch = line.match(/(?:horario)[\s:]+(.*)/i);
+            const timeMatch = line.match(/(?:horario)[:\s]+(.*)/i);
             if (timeMatch) {
                 const horario = timeMatch[1].trim();
                 // Intentar extraer formato HH:MM
@@ -177,8 +186,25 @@ export default function TicketModal({ isVisible, onClose, ticketData, onSave, on
                     parsed.horarioInicio = hm[1].replace('.', ':');
                     parsed.horarioFin = hm[2].replace('.', ':');
                 } else {
-                    // Si no tiene formato estricto HH:MM, lo guardamos en notas adicionales para no perderlo
-                    parsed.nota = (parsed.nota ? parsed.nota + '\n' : '') + `Horario original: ${horario}`;
+                    // Intentar formato AM/PM: "9 AM A 9 PM" o "9AM A 9PM"
+                    const ampm = horario.match(/(\d{1,2})\s*(am|pm)\s*a\s*(\d{1,2})\s*(am|pm)/i);
+                    if (ampm) {
+                        let startH = parseInt(ampm[1]);
+                        const startMeridian = ampm[2].toLowerCase();
+                        let endH = parseInt(ampm[3]);
+                        const endMeridian = ampm[4].toLowerCase();
+                        
+                        if (startMeridian === 'pm' && startH !== 12) startH += 12;
+                        if (startMeridian === 'am' && startH === 12) startH = 0;
+                        if (endMeridian === 'pm' && endH !== 12) endH += 12;
+                        if (endMeridian === 'am' && endH === 12) endH = 0;
+                        
+                        parsed.horarioInicio = `${String(startH).padStart(2, '0')}:00`;
+                        parsed.horarioFin = `${String(endH).padStart(2, '0')}:00`;
+                    } else {
+                        // Si no tiene formato reconocible, lo guardamos en notas
+                        parsed.nota = (parsed.nota ? parsed.nota + '\n' : '') + `Horario original: ${horario}`;
+                    }
                 }
                 return;
             }
