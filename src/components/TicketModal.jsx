@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Copy, X, Wand2, Sparkles, Loader2, Calendar, CheckCircle2, User, PlusCircle, Trash2, Users, FileText, Maximize2, Minimize2, Send, PhoneCall, Edit3 } from 'lucide-react';
+import { Copy, X, Wand2, Calendar, CheckCircle2, User, PlusCircle, Trash2, Users, FileText, Maximize2, Minimize2, Send, PhoneCall, Edit3 } from 'lucide-react';
 import { getPriorityStyle, generateId } from '../utils/helpers';
-import { parseWithGemini } from '../utils/geminiParser';
 
 export default function TicketModal({ isVisible, onClose, ticketData, onSave, onDelete, onOpenContact, showToast }) {
     const isNew = !ticketData;
@@ -31,7 +30,7 @@ export default function TicketModal({ isVisible, onClose, ticketData, onSave, on
     const [comments, setComments] = useState([]);
     const [templateText, setTemplateText] = useState('');
     const [newComment, setNewComment] = useState('');
-    const [isProcessing, setIsProcessing] = useState(false);
+
 
     useEffect(() => {
         if (isVisible) {
@@ -89,39 +88,7 @@ export default function TicketModal({ isVisible, onClose, ticketData, onSave, on
 
     if (!isVisible) return null;
 
-    const handleProcessTemplate = async () => {
-        if (!templateText.trim()) {
-            showToast('Por favor pega un texto válido primero', true);
-            return;
-        }
 
-        setIsProcessing(true);
-        try {
-            console.log('[TicketModal] Enviando texto a Gemini...');
-            const parsed = await parseWithGemini(templateText);
-            console.log('[TicketModal] Respuesta parseada recibida:', parsed);
-            if (parsed && typeof parsed === 'object') {
-                applyParsedData(parsed, '✨ IA procesó el texto y auto-completó los campos');
-            } else {
-                console.error('[TicketModal] Respuesta inesperada:', parsed);
-                // Fallback a regex
-                handleProcessRegex();
-                showToast('⚠️ IA devolvió respuesta inesperada. Se usó procesamiento clásico como respaldo.', true);
-            }
-        } catch (error) {
-            console.error('[TicketModal] Error con Gemini, usando fallback regex:', error);
-            // Fallback automático a regex cuando Gemini falla
-            handleProcessRegex();
-            const isQuotaError = error.message && error.message.includes('429');
-            if (isQuotaError) {
-                showToast('⚠️ Cuota de IA excedida. Se procesó con el método clásico como respaldo.', true);
-            } else {
-                showToast('⚠️ IA no disponible. Se procesó con el método clásico.', true);
-            }
-        } finally {
-            setIsProcessing(false);
-        }
-    };
 
     const handleProcessRegex = () => {
         if (!templateText.trim()) {
@@ -631,26 +598,15 @@ export default function TicketModal({ isVisible, onClose, ticketData, onSave, on
                     <div className={`flex-1 p-6 border-r border-slate-100 space-y-6 overflow-y-auto transition-all duration-300 ${isBitacoraExpanded ? 'hidden' : ''}`}>
                         
                         {isNew && (
-                            <div className="p-4 bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl relative overflow-hidden">
-                                {isProcessing && (
-                                    <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-10 rounded-xl">
-                                        <div className="flex flex-col items-center gap-3">
-                                            <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
-                                            <span className="text-sm font-semibold text-indigo-700">Gemini IA analizando texto...</span>
-                                        </div>
-                                    </div>
-                                )}
-                                <label className="block text-sm font-semibold text-indigo-800 mb-2 flex items-center gap-2">
-                                    <Sparkles className="w-4 h-4 text-purple-500" /> Autocompletar con Inteligencia Artificial
+                            <div className="p-4 bg-gradient-to-br from-slate-50 to-blue-50 border border-blue-200 rounded-xl">
+                                <label className="block text-sm font-semibold text-slate-800 mb-2 flex items-center gap-2">
+                                    <Wand2 className="w-4 h-4 text-blue-600" /> Extraer Datos de Plantilla
                                 </label>
-                                <p className="text-[11px] text-indigo-600/70 mb-2">Pega cualquier texto: plantillas, correos, mensajes de WhatsApp, texto libre... la IA lo interpreta automáticamente.</p>
-                                <textarea rows="4" className="w-full px-3 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none resize-none text-xs text-slate-600 font-mono mb-2 bg-white/70" placeholder="Pega aquí cualquier texto con datos del cliente y la IA extraerá la información..." value={templateText} onChange={(e) => setTemplateText(e.target.value)} disabled={isProcessing}></textarea>
-                                <div className="flex justify-end gap-2">
-                                    <button type="button" onClick={handleProcessRegex} disabled={isProcessing} className="px-4 py-1.5 bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50 text-xs font-medium rounded-lg transition-all flex items-center gap-2 shadow-sm disabled:opacity-50">
-                                        Procesar (Sin IA)
-                                    </button>
-                                    <button type="button" onClick={handleProcessTemplate} disabled={isProcessing} className="px-4 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-medium rounded-lg transition-all flex items-center gap-2 shadow-sm disabled:opacity-50">
-                                        <Sparkles className="w-3 h-3" /> Procesar con IA
+                                <p className="text-[11px] text-slate-500 mb-2">Pega la plantilla del ticket y se extraerán automáticamente los campos: cuenta, razón social, contacto, teléfono, email, horario, falla, datos técnicos y más.</p>
+                                <textarea rows="4" className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none text-xs text-slate-600 font-mono mb-2 bg-white/70" placeholder="Pega aquí la plantilla del ticket..." value={templateText} onChange={(e) => setTemplateText(e.target.value)}></textarea>
+                                <div className="flex justify-end">
+                                    <button type="button" onClick={handleProcessRegex} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-all flex items-center gap-2 shadow-sm">
+                                        <Wand2 className="w-3.5 h-3.5" /> Extraer Datos
                                     </button>
                                 </div>
                             </div>
