@@ -37,43 +37,62 @@ export async function parseWithGemini(rawText) {
     throw new Error('API Key de Gemini no configurada');
   }
 
-  const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+  console.log('[Gemini Parser] Iniciando petición con modelo gemini-2.0-flash...');
+  console.log('[Gemini Parser] API Key (primeros 10 chars):', apiKey.substring(0, 10) + '...');
+  console.log('[Gemini Parser] Texto a analizar:', rawText.substring(0, 100) + '...');
+
+  const requestBody = {
+    systemInstruction: {
+      parts: [{ text: SYSTEM_PROMPT }]
     },
-    body: JSON.stringify({
-      systemInstruction: {
-        parts: [{ text: SYSTEM_PROMPT }]
-      },
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            { text: `Analiza el siguiente texto y extrae la información:\n\n${rawText}` }
-          ]
-        }
-      ],
-      generationConfig: {
-        temperature: 0.1,
-        maxOutputTokens: 1024,
-        responseMimeType: 'application/json',
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          { text: `Analiza el siguiente texto y extrae la información:\n\n${rawText}` }
+        ]
       }
-    })
-  });
+    ],
+    generationConfig: {
+      temperature: 0.1,
+      maxOutputTokens: 1024,
+      responseMimeType: 'application/json',
+    }
+  };
+
+  let response;
+  try {
+    response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody)
+    });
+  } catch (networkError) {
+    console.error('[Gemini Parser] Error de red:', networkError);
+    throw new Error('Error de red al conectar con Gemini. Verifica tu conexión a internet.');
+  }
+
+  console.log('[Gemini Parser] Status de respuesta:', response.status);
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
+    console.error('[Gemini Parser] Error de API:', errorData);
     throw new Error(`Error de Gemini API: ${response.status} - ${errorData?.error?.message || 'Error desconocido'}`);
   }
 
   const data = await response.json();
+  console.log('[Gemini Parser] Respuesta completa de Gemini:', JSON.stringify(data, null, 2));
   
   const textContent = data?.candidates?.[0]?.content?.parts?.[0]?.text;
   
   if (!textContent) {
+    console.error('[Gemini Parser] No hay contenido de texto en la respuesta:', data);
     throw new Error('No se recibió respuesta de Gemini');
   }
+
+  console.log('[Gemini Parser] Texto de respuesta:', textContent);
 
   // Limpiar la respuesta: remover posibles backticks o texto extra
   let cleanJson = textContent.trim();
@@ -85,9 +104,11 @@ export async function parseWithGemini(rawText) {
 
   try {
     const parsed = JSON.parse(cleanJson);
+    console.log('[Gemini Parser] JSON parseado exitosamente:', parsed);
     return parsed;
   } catch (e) {
-    console.error('Error parsing Gemini response:', cleanJson);
+    console.error('[Gemini Parser] Error parseando JSON:', cleanJson);
+    console.error('[Gemini Parser] Error detalle:', e.message);
     throw new Error('La IA no pudo procesar el texto correctamente. Intenta con un formato más claro.');
   }
 }

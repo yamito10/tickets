@@ -97,10 +97,17 @@ export default function TicketModal({ isVisible, onClose, ticketData, onSave, on
 
         setIsProcessing(true);
         try {
+            console.log('[TicketModal] Enviando texto a Gemini...');
             const parsed = await parseWithGemini(templateText);
-            applyParsedData(parsed, '✨ IA procesó el texto y auto-completó los campos');
+            console.log('[TicketModal] Respuesta parseada recibida:', parsed);
+            if (parsed && typeof parsed === 'object') {
+                applyParsedData(parsed, '✨ IA procesó el texto y auto-completó los campos');
+            } else {
+                console.error('[TicketModal] Respuesta inesperada:', parsed);
+                showToast('La IA devolvió una respuesta inesperada', true);
+            }
         } catch (error) {
-            console.error('Error con Gemini:', error);
+            console.error('[TicketModal] Error con Gemini:', error);
             showToast(error.message || 'Error al procesar con IA', true);
         } finally {
             setIsProcessing(false);
