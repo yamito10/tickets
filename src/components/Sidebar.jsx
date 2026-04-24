@@ -22,7 +22,7 @@ function UserAvatar({ email }) {
     );
 }
 
-export default function Sidebar({ currentView, setCurrentView, openExportModal, exportBackup, importBackup, onLogout, user, ticketCounts }) {
+export default function Sidebar({ currentView, setCurrentView, openExportModal, exportBackup, importBackup, onLogout, user, ticketCounts, isMobileMenuOpen, setIsMobileMenuOpen }) {
     const fileInputRef = useRef(null);
 
     const handleImport = (e) => {
@@ -37,7 +37,20 @@ export default function Sidebar({ currentView, setCurrentView, openExportModal, 
     const criticalCount = ticketCounts?.critical || 0;
 
     return (
-        <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-xl z-10 hidden md:flex">
+        <>
+            {/* Mobile Backdrop */}
+            {isMobileMenuOpen && (
+                <div 
+                    className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 md:hidden"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                />
+            )}
+
+            <aside className={`
+                fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-slate-300 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out
+                md:relative md:translate-x-0
+                ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+            `}>
             {/* Logo */}
             <div className="p-5 flex items-center gap-3 text-white border-b border-slate-800">
                 <div className="w-9 h-9 bg-blue-500 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/30">
@@ -150,5 +163,6 @@ export default function Sidebar({ currentView, setCurrentView, openExportModal, 
                 </div>
             </div>
         </aside>
+        </>
     );
 }

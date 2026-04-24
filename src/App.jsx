@@ -40,6 +40,9 @@ export default function App() {
     const [isExportModalVisible, setIsExportModalVisible] = useState(false);
     const [deleteConfirmInfo, setDeleteConfirmInfo] = useState(null); // { type, id }
     
+    // Mobile navigation state
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    
     const [currentTicketId, setCurrentTicketId] = useState(null);
     const [contactTicketData, setContactTicketData] = useState(null);
 
@@ -91,15 +94,18 @@ export default function App() {
     };
 
     const handleSaveTicket = async (ticketData, closeModal = true) => {
+        let success = false;
         if (currentTicketId) {
-            await saveTicket({ id: currentTicketId, ...ticketData });
-            showToast('Ticket actualizado con éxito en la Nube');
+            success = await saveTicket({ id: currentTicketId, ...ticketData });
+            if (success) showToast('Ticket actualizado con éxito en la Nube');
+            else showToast('Error al actualizar ticket. Verifica tu conexión.', true);
         } else {
             const newTicket = { ...ticketData, id: generateId(tickets), createdAt: new Date().toISOString() };
-            await saveTicket(newTicket);
-            showToast('Nuevo ticket creado en la Nube');
+            success = await saveTicket(newTicket);
+            if (success) showToast('Nuevo ticket creado en la Nube');
+            else showToast('Error al crear ticket. Verifica tu conexión.', true);
         }
-        if (closeModal) {
+        if (success && closeModal) {
             setIsTicketModalVisible(false);
             setCurrentTicketId(null);
         }
@@ -117,16 +123,22 @@ export default function App() {
         if (!deleteConfirmInfo) return;
         const { type, id } = deleteConfirmInfo;
 
+        let success = false;
         if (type === 'ticket') {
-            await removeTicket(id);
-            showToast('Ticket eliminado de la Nube', true);
-            setIsTicketModalVisible(false);
+            success = await removeTicket(id);
+            if (success) {
+                showToast('Ticket eliminado de la Nube', true);
+                setIsTicketModalVisible(false);
+            } else {
+                showToast('Error al eliminar ticket. Verifica tu conexión.', true);
+            }
         } else if (type === 'note') {
-            await removeNote(id);
-            showToast('Nota eliminada de la Nube', true);
+            success = await removeNote(id);
+            if (success) showToast('Nota eliminada de la Nube', true);
+            else showToast('Error al eliminar nota. Verifica tu conexión.', true);
         }
 
-        closeDeleteConfirm();
+        if (success) closeDeleteConfirm();
     };
 
     const handleOpenContact = (ticketData) => {
@@ -188,7 +200,10 @@ export default function App() {
         <div className="bg-slate-50 text-slate-900 font-sans flex h-screen overflow-hidden">
             <Sidebar 
                 currentView={currentView} 
-                setCurrentView={setCurrentView} 
+                setCurrentView={(view) => {
+                    setCurrentView(view);
+                    setIsMobileMenuOpen(false); // Close menu on navigation
+                }} 
                 openExportModal={() => setIsExportModalVisible(true)}
                 exportBackup={exportBackup}
                 importBackup={importBackup}
@@ -198,6 +213,8 @@ export default function App() {
                     active: tickets.filter(t => t.status !== 'Resuelto').length,
                     critical: tickets.filter(t => (t.priority === 'Crítica' || t.priority === 'Alta') && t.status !== 'Resuelto').length
                 }}
+                isMobileMenuOpen={isMobileMenuOpen}
+                setIsMobileMenuOpen={setIsMobileMenuOpen}
             />
 
             <main className="flex-1 flex flex-col overflow-hidden relative">
@@ -206,6 +223,7 @@ export default function App() {
                     searchTerm={searchTerm}
                     setSearchTerm={setSearchTerm}
                     openNewTicket={() => handleOpenTicket(null)}
+                    onMenuToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 />
 
                 <div className="flex-1 overflow-auto p-8 relative">

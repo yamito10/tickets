@@ -34,23 +34,27 @@ export function useFirebaseCollection(collectionName, userId) {
 
   const addOrUpdateItem = async (item) => {
     try {
-      if (!import.meta.env.VITE_FIREBASE_API_KEY || !userId) return;
+      if (!import.meta.env.VITE_FIREBASE_API_KEY || !userId) return false;
       
       const docRef = doc(db, collectionName, item.id);
       // Asegurarnos de que el item tenga el userId al guardar
       await setDoc(docRef, { ...item, userId });
+      return true;
     } catch (error) {
       console.error(`Error saving to ${collectionName}:`, error);
+      return false;
     }
   };
 
   const deleteItem = async (id) => {
     try {
-      if (!import.meta.env.VITE_FIREBASE_API_KEY || !userId) return;
+      if (!import.meta.env.VITE_FIREBASE_API_KEY || !userId) return false;
       const docRef = doc(db, collectionName, id);
       await deleteDoc(docRef);
+      return true;
     } catch (error) {
       console.error(`Error deleting from ${collectionName}:`, error);
+      return false;
     }
   };
 

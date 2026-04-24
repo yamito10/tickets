@@ -29,13 +29,13 @@ export default function TicketsView({ tickets, searchTerm, advStatus, setAdvStat
     if (searchTerm) {
         const lowerSearch = searchTerm.toLowerCase();
         filtered = filtered.filter(t => 
-            t.title.toLowerCase().includes(lowerSearch) || 
-            t.customerName.toLowerCase().includes(lowerSearch) ||
-            (t.customerCompany && t.customerCompany.toLowerCase().includes(lowerSearch)) ||
-            t.id.toLowerCase().includes(lowerSearch) ||
-            t.status.toLowerCase().includes(lowerSearch) ||
-            (t.folio && t.folio.toLowerCase().includes(lowerSearch)) ||
-            (t.account && t.account.toLowerCase().includes(lowerSearch))
+            (t.title || '').toLowerCase().includes(lowerSearch) || 
+            (t.customerName || '').toLowerCase().includes(lowerSearch) ||
+            (t.customerCompany || '').toLowerCase().includes(lowerSearch) ||
+            (t.id || '').toLowerCase().includes(lowerSearch) ||
+            (t.status || '').toLowerCase().includes(lowerSearch) ||
+            (t.folio || '').toLowerCase().includes(lowerSearch) ||
+            (t.account || '').toLowerCase().includes(lowerSearch)
         );
     }
 

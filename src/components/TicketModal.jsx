@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Copy, X, Wand2, Calendar, CheckCircle2, User, PlusCircle, Trash2, Users, FileText, Maximize2, Minimize2, Send, PhoneCall, Edit3 } from 'lucide-react';
+import { Copy, X, Wand2, Calendar, CheckCircle2, User, PlusCircle, Trash2, Users, FileText, Maximize2, Minimize2, Send, PhoneCall, Edit3, Loader2 } from 'lucide-react';
 import { getPriorityStyle, generateId } from '../utils/helpers';
 
 export default function TicketModal({ isVisible, onClose, ticketData, onSave, onDelete, onOpenContact, showToast }) {
     const isNew = !ticketData;
     const [isEditable, setIsEditable] = useState(isNew);
     const [isBitacoraExpanded, setIsBitacoraExpanded] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     
     // Form state
     const [title, setTitle] = useState('');
@@ -436,7 +437,7 @@ export default function TicketModal({ isVisible, onClose, ticketData, onSave, on
         showToast(successMessage);
     };
 
-    const handleCopySummary = () => {
+    const handleCopySummary = async () => {
         const companyText = customerCompany ? `\n*Razón Social:* ${customerCompany}` : '';
         const accountText = account ? `\n*Cuenta:* ${account}` : '';
         const emailText = customerEmail ? `\n*Correo:* ${customerEmail}` : '';
@@ -452,17 +453,13 @@ export default function TicketModal({ isVisible, onClose, ticketData, onSave, on
         const assignedTimeText = assignedTime ? `\n*Hora Asignación:* ${assignedTime}` : '';
         const summary = `*Ticket:* ${folio}${accountText}\n*Asunto:* ${title}\n*Prioridad:* ${priority}\n*Estatus:* ${status}${assignedTimeText}${companyText}\n*Contacto Principal:* ${customerName}${emailText}${contact2Text}${scheduleText}\n*L2 Asignado:* ${l2Assignee || 'Ninguno'}\n*Última actualización:* ${comments.length > 0 ? comments[comments.length-1].text : 'Sin comentarios'}`;
         
-        const textArea = document.createElement("textarea");
-        textArea.value = summary;
-        document.body.appendChild(textArea);
-        textArea.select();
         try {
-            document.execCommand('copy');
+            await navigator.clipboard.writeText(summary);
             showToast('Resumen copiado al portapapeles');
         } catch (err) {
+            console.error('Failed to copy:', err);
             showToast('Error al copiar', true);
         }
-        document.body.removeChild(textArea);
     };
 
     const getTicketDataToSave = (updatedComments) => {
@@ -512,38 +509,43 @@ export default function TicketModal({ isVisible, onClose, ticketData, onSave, on
         }
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         
-        let updatedComments = [...comments];
-        
-        // Si escribió algo y no le dio al botón de agregar, lo agregamos de todas formas
-        if (newComment.trim()) {
-            updatedComments.push({
-                id: Date.now() + Math.random(),
-                text: newComment.trim(),
-                date: new Date().toISOString()
-            });
-            setNewComment('');
-        }
+        setIsSaving(true);
+        try {
+            const updatedComments = [...comments];
+            
+            // Si escribió algo y no le dio al botón de agregar, lo agregamos de todas formas
+            if (newComment.trim()) {
+                updatedComments.push({
+                    id: Date.now() + Math.random(),
+                    text: newComment.trim(),
+                    date: new Date().toISOString()
+                });
+                setNewComment('');
+            }
 
-        if (!isNew && ticketData) {
-            if (ticketData.status !== status) {
-                updatedComments.push({ id: Date.now() + Math.random(), text: `Registro de Sistema: El estatus cambió de '${ticketData.status}' a '${status}'.`, date: new Date().toISOString(), isSystem: true });
+            if (!isNew && ticketData) {
+                if (ticketData.status !== status) {
+                    updatedComments.push({ id: Date.now() + Math.random(), text: `Registro de Sistema: El estatus cambió de '${ticketData.status}' a '${status}'.`, date: new Date().toISOString(), isSystem: true });
+                }
+                if (ticketData.priority !== priority) {
+                    updatedComments.push({ id: Date.now() + Math.random(), text: `Registro de Sistema: La prioridad cambió de '${ticketData.priority}' a '${priority}'.`, date: new Date().toISOString(), isSystem: true });
+                }
+                if (ticketData.l2Assignee !== l2Assignee) {
+                    const oldL2Text = ticketData.l2Assignee || 'Ninguno';
+                    const newL2Text = l2Assignee || 'Ninguno';
+                    updatedComments.push({ id: Date.now() + Math.random(), text: `Registro de Sistema: El escalamiento Nivel 2 cambió de '${oldL2Text}' a '${newL2Text}'.`, date: new Date().toISOString(), isSystem: true });
+                }
+            } else {
+                updatedComments.push({ id: Date.now() + Math.random(), text: `Registro de Sistema: Ticket creado con estatus '${status}' y prioridad '${priority}'.`, date: new Date().toISOString(), isSystem: true });
             }
-            if (ticketData.priority !== priority) {
-                updatedComments.push({ id: Date.now() + Math.random(), text: `Registro de Sistema: La prioridad cambió de '${ticketData.priority}' a '${priority}'.`, date: new Date().toISOString(), isSystem: true });
-            }
-            if (ticketData.l2Assignee !== l2Assignee) {
-                const oldL2Text = ticketData.l2Assignee || 'Ninguno';
-                const newL2Text = l2Assignee || 'Ninguno';
-                updatedComments.push({ id: Date.now() + Math.random(), text: `Registro de Sistema: El escalamiento Nivel 2 cambió de '${oldL2Text}' a '${newL2Text}'.`, date: new Date().toISOString(), isSystem: true });
-            }
-        } else {
-            updatedComments.push({ id: Date.now() + Math.random(), text: `Registro de Sistema: Ticket creado con estatus '${status}' y prioridad '${priority}'.`, date: new Date().toISOString(), isSystem: true });
-        }
 
-        onSave(getTicketDataToSave(updatedComments));
+            await onSave(getTicketDataToSave(updatedComments));
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const renderComment = (c) => {
@@ -819,8 +821,9 @@ export default function TicketModal({ isVisible, onClose, ticketData, onSave, on
                         {isEditable ? 'Cancelar' : 'Cerrar'}
                     </button>
                     {isEditable && (
-                        <button type="submit" form="ticket-form" className="px-5 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-sm">
-                            Guardar Ticket
+                        <button type="submit" form="ticket-form" disabled={isSaving} className="px-5 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-sm flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
+                            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                            {isSaving ? 'Guardando...' : 'Guardar Ticket'}
                         </button>
                     )}
                 </div>
