@@ -130,110 +130,324 @@ export default function TicketModal({ isVisible, onClose, ticketData, onSave, on
         }
         
         const parsed = {};
-        const lines = templateText.split('\n');
+        const rawText = templateText.trim();
+        const lines = rawText.split('\n');
         
-        let descLines = [];
-        let isDesc = false;
+        // Campos técnicos adicionales para la descripción
+        const techFields = [];
+        // Campos de falla para la descripción
+        const fallaFields = [];
+
+        // Helper: convierte horario con formato diverso a HH:MM
+        const parseHorario = (val) => {
+            // "24 / 7" o "24/7" o "24x7" o "24 horas"
+            if (/24\s*[\/x]\s*7/i.test(val) || /24\s*horas/i.test(val)) {
+                return { inicio: '00:00', fin: '23:59' };
+            }
+            // "L a D de 9 a 21" o similar con números
+            const simpleRange = val.match(/(\d{1,2})\s*a\s*(\d{1,2})/i);
+            if (simpleRange) {
+                const s = parseInt(simpleRange[1]);
+                const e = parseInt(simpleRange[2]);
+                return { 
+                    inicio: `${String(s).padStart(2, '0')}:00`, 
+                    fin: `${String(e).padStart(2, '0')}:00` 
+                };
+            }
+            // HH:MM a HH:MM
+            const hm = val.match(/(\d{1,2}[:.]\d{2})\s*a\s*(\d{1,2}[:.]\d{2})/i);
+            if (hm) {
+                return { inicio: hm[1].replace('.', ':'), fin: hm[2].replace('.', ':') };
+            }
+            // AM/PM
+            const ampm = val.match(/(\d{1,2})\s*(am|pm)\s*a\s*(\d{1,2})\s*(am|pm)/i);
+            if (ampm) {
+                let startH = parseInt(ampm[1]);
+                let endH = parseInt(ampm[3]);
+                if (ampm[2].toLowerCase() === 'pm' && startH !== 12) startH += 12;
+                if (ampm[2].toLowerCase() === 'am' && startH === 12) startH = 0;
+                if (ampm[4].toLowerCase() === 'pm' && endH !== 12) endH += 12;
+                if (ampm[4].toLowerCase() === 'am' && endH === 12) endH = 0;
+                return { 
+                    inicio: `${String(startH).padStart(2, '0')}:00`, 
+                    fin: `${String(endH).padStart(2, '0')}:00` 
+                };
+            }
+            return null;
+        };
 
         lines.forEach(line => {
-            if (isDesc) {
-                descLines.push(line);
+            // Limpiar la línea: quitar comas al final y espacios extra
+            const cleanLine = line.replace(/,\s*$/, '').trim();
+            if (!cleanLine) return;
+
+            // Separar por el primer ":" para obtener clave y valor
+            const colonIdx = cleanLine.indexOf(':');
+            if (colonIdx === -1) return;
+
+            const rawKey = cleanLine.substring(0, colonIdx).trim().toLowerCase();
+            const val = cleanLine.substring(colonIdx + 1).trim();
+            
+            // Si el valor está vacío, N/A o "--", ignorar
+            const isEmptyVal = !val || val === 'N/A' || val === 'n/a' || val === '--' || val === '-';
+
+            // ===== CUENTA =====
+            if (/^cuenta/.test(rawKey) || /^cta/.test(rawKey)) {
+                if (!isEmptyVal) parsed.cuenta = val;
                 return;
             }
 
-            const cuentaMatch = line.match(/(?:cuenta|cta)[:\s]+(.*)/i);
-            if (cuentaMatch) {
-                parsed.cuenta = cuentaMatch[1].trim();
+            // ===== RAZÓN SOCIAL =====
+            if (/raz[oó]n\s*social/.test(rawKey) || /^titular/.test(rawKey) || /^rs\b/.test(rawKey) || /^cliente\b/.test(rawKey) || /^empresa\b/.test(rawKey)) {
+                if (!isEmptyVal) parsed.razonSocial = val;
                 return;
             }
 
-            const rsMatch = line.match(/(?:rs|raz[oó]n\s*social|cliente|empresa)[:\s]+(.*)/i);
-            if (rsMatch) {
-                parsed.razonSocial = rsMatch[1].trim();
+            // ===== TÍTULO / FALLA =====
+            if (/t[ií]tulo/.test(rawKey) || /^asunto/.test(rawKey) || /^reporte/.test(rawKey)) {
+                if (!isEmptyVal) parsed.titulo = val;
                 return;
             }
 
-            const titleMatch = line.match(/(?:t[ií]tulo(?:\s+de(?:l)?\s+reporte)?|falla|asunto|problema|reporte)[:\s]+(.*)/i);
-            if (titleMatch) {
-                parsed.titulo = titleMatch[1].trim();
+            // ===== ¿QUÉ FALLA PRESENTA? =====
+            if (/qu[eé]\s*falla\s*presenta/.test(rawKey) || /falla\s*presenta/.test(rawKey)) {
+                if (!isEmptyVal) {
+                    parsed.titulo = val;
+                    fallaFields.push(`Falla: ${val}`);
+                }
                 return;
             }
 
-            const contactMatch = line.match(/(?:contacto|nombre)[\s:]+(.*)/i);
-            if (contactMatch) {
-                parsed.contacto = contactMatch[1].trim();
+            // ===== CAMPOS DE DIAGNÓSTICO DE FALLA =====
+            if (/d[oó]nde\s*se\s*ubica/.test(rawKey)) {
+                if (!isEmptyVal) fallaFields.push(`Ubicación falla: ${val}`);
+                return;
+            }
+            if (/qu[eé]\s*percibi[oó]/.test(rawKey) || /qu[eé]\s*percibe/.test(rawKey)) {
+                if (!isEmptyVal) fallaFields.push(`Percepción: ${val}`);
+                return;
+            }
+            if (/cu[aá]nto\s*tiempo/.test(rawKey)) {
+                if (!isEmptyVal) fallaFields.push(`Duración falla: ${val}`);
+                return;
+            }
+            if (/falla\s*(?:es\s*)?recurrente/.test(rawKey)) {
+                if (!isEmptyVal) fallaFields.push(`Recurrente: ${val}`);
+                return;
+            }
+            if (/falla\s*(?:fue|es)\s*total/.test(rawKey)) {
+                if (!isEmptyVal) fallaFields.push(`Falla total: ${val}`);
+                return;
+            }
+            if (/falla\s*(?:fue|es)\s*parcial/.test(rawKey)) {
+                if (!isEmptyVal) fallaFields.push(`Falla parcial: ${val}`);
+                return;
+            }
+            if (/p[aá]ginas\s*en\s*espec[ií]fico/.test(rawKey)) {
+                if (!isEmptyVal) fallaFields.push(`Páginas afectadas: ${val}`);
+                return;
+            }
+            if (/wifi\s*o\s*ethernet/.test(rawKey)) {
+                if (!isEmptyVal) fallaFields.push(`Tipo conexión: ${val}`);
+                return;
+            }
+            if (/falla\s*persiste\s*aislando/.test(rawKey)) {
+                if (!isEmptyVal) fallaFields.push(`Aislando red: ${val}`);
+                return;
+            }
+            if (/cu[aá]ndo\s*la\s*present[oó]/.test(rawKey) || /desde\s*cuando/.test(rawKey)) {
+                if (!isEmptyVal) fallaFields.push(`Desde cuándo: ${val}`);
+                return;
+            }
+            if (/descartar\s*falla\s*f[ií]sica/.test(rawKey)) {
+                if (!isEmptyVal) fallaFields.push(`Falla física: ${val}`);
                 return;
             }
 
-            const phoneMatch = line.match(/(?:tel[eé]fono)[\s:]+(.*)/i);
-            if (phoneMatch) {
-                parsed.telefono = phoneMatch[1].trim();
+            // ===== CONTACTO / NOMBRE =====
+            if (/nombre\s*de\s*qui[eé]n\s*se\s*comunica/.test(rawKey) || /contacto\s*para\s*seguimiento/.test(rawKey)) {
+                if (!isEmptyVal && !parsed.contacto) parsed.contacto = val;
+                return;
+            }
+            if (/^contacto/.test(rawKey) || /^nombre/.test(rawKey)) {
+                if (!isEmptyVal && !parsed.contacto) parsed.contacto = val;
                 return;
             }
 
-            const emailMatch = line.match(/(?:email|correo)[\s:]+(.*)/i);
-            if (emailMatch) {
-                parsed.email = emailMatch[1].trim();
+            // ===== TELÉFONO =====
+            if (/tel[eé]fono\s*celular/.test(rawKey) || /tel[eé]fono\s*m[oó]vil/.test(rawKey) || /celular/.test(rawKey)) {
+                if (!isEmptyVal) parsed.telefono = val;
+                return;
+            }
+            if (/tel[eé]fono\s*fijo/.test(rawKey)) {
+                // Solo si no tenemos teléfono principal
+                if (!isEmptyVal && !parsed.telefono) parsed.telefono = val;
+                return;
+            }
+            if (/^tel[eé]fono/.test(rawKey)) {
+                if (!isEmptyVal && !parsed.telefono) parsed.telefono = val;
                 return;
             }
 
-            const timeMatch = line.match(/(?:horario)[:\s]+(.*)/i);
-            if (timeMatch) {
-                const horario = timeMatch[1].trim();
-                // Intentar extraer formato HH:MM
-                const hm = horario.match(/(\d{1,2}[:.]\d{2})\s*a\s*(\d{1,2}[:.]\d{2})/i);
-                if (hm) {
-                    parsed.horarioInicio = hm[1].replace('.', ':');
-                    parsed.horarioFin = hm[2].replace('.', ':');
-                } else {
-                    // Intentar formato AM/PM: "9 AM A 9 PM" o "9AM A 9PM"
-                    const ampm = horario.match(/(\d{1,2})\s*(am|pm)\s*a\s*(\d{1,2})\s*(am|pm)/i);
-                    if (ampm) {
-                        let startH = parseInt(ampm[1]);
-                        const startMeridian = ampm[2].toLowerCase();
-                        let endH = parseInt(ampm[3]);
-                        const endMeridian = ampm[4].toLowerCase();
-                        
-                        if (startMeridian === 'pm' && startH !== 12) startH += 12;
-                        if (startMeridian === 'am' && startH === 12) startH = 0;
-                        if (endMeridian === 'pm' && endH !== 12) endH += 12;
-                        if (endMeridian === 'am' && endH === 12) endH = 0;
-                        
-                        parsed.horarioInicio = `${String(startH).padStart(2, '0')}:00`;
-                        parsed.horarioFin = `${String(endH).padStart(2, '0')}:00`;
-                    } else {
-                        // Si no tiene formato reconocible, lo guardamos en notas
-                        parsed.nota = (parsed.nota ? parsed.nota + '\n' : '') + `Horario original: ${horario}`;
+            // ===== EMAIL =====
+            if (/email/.test(rawKey) || /correo/.test(rawKey) || /e-mail/.test(rawKey)) {
+                if (!isEmptyVal) parsed.email = val;
+                return;
+            }
+
+            // ===== HORARIO DE ATENCIÓN EN SITIO (prioritario) =====
+            if (/horario\s*de\s*atenci[oó]n\s*en\s*sitio/.test(rawKey) || /horario\s*atenci[oó]n\s*sitio/.test(rawKey)) {
+                const h = parseHorario(val);
+                if (h) {
+                    parsed.horarioInicio = h.inicio;
+                    parsed.horarioFin = h.fin;
+                }
+                return;
+            }
+            // Horario vía telefónica (secundario, solo si no hay horario sitio)
+            if (/horario\s*de\s*atenci[oó]n\s*v[ií]a/.test(rawKey) || /horario\s*telef[oó]nica/.test(rawKey)) {
+                if (!parsed.horarioInicio) {
+                    const h = parseHorario(val);
+                    if (h) {
+                        parsed.horarioInicio = h.inicio;
+                        parsed.horarioFin = h.fin;
+                    }
+                }
+                return;
+            }
+            // Horario genérico
+            if (/^horario/.test(rawKey)) {
+                if (!parsed.horarioInicio) {
+                    const h = parseHorario(val);
+                    if (h) {
+                        parsed.horarioInicio = h.inicio;
+                        parsed.horarioFin = h.fin;
                     }
                 }
                 return;
             }
 
-            const prioMatch = line.match(/(?:prioridad)[\s:]+(.*)/i);
-            if (prioMatch) {
-                const p = prioMatch[1].trim().toLowerCase();
+            // ===== PRIORIDAD =====
+            if (/prioridad/.test(rawKey)) {
+                const p = val.toLowerCase();
                 if (p.includes('baja')) parsed.prioridad = 'Baja';
-                if (p.includes('media')) parsed.prioridad = 'Media';
-                if (p.includes('alta')) parsed.prioridad = 'Alta';
-                if (p.includes('critica') || p.includes('crítica')) parsed.prioridad = 'Crítica';
+                else if (p.includes('media')) parsed.prioridad = 'Media';
+                else if (p.includes('alta')) parsed.prioridad = 'Alta';
+                else if (p.includes('critica') || p.includes('crítica')) parsed.prioridad = 'Crítica';
                 return;
             }
 
-            const descMatch = line.match(/(?:descripci[oó]n)[\s:]*(.*)/i);
-            if (descMatch) {
-                isDesc = true;
-                if (descMatch[1].trim()) {
-                    descLines.push(descMatch[1].trim());
-                }
+            // ===== NOTA =====
+            if (/^nota\b/.test(rawKey)) {
+                if (!isEmptyVal) parsed.nota = val;
+                return;
+            }
+
+            // ===== CAMPOS TÉCNICOS (para la descripción) =====
+            if (/segmento/.test(rawKey)) {
+                if (!isEmptyVal) techFields.push(`Segmento: ${val}`);
+                return;
+            }
+            if (/direcci[oó]n\s*de\s*instalaci[oó]n/.test(rawKey) || /direcci[oó]n/.test(rawKey)) {
+                if (!isEmptyVal) techFields.push(`Dirección: ${val}`);
+                return;
+            }
+            if (/plan\s*contratado/.test(rawKey) || /plan/.test(rawKey)) {
+                if (!isEmptyVal) techFields.push(`Plan: ${val}`);
+                return;
+            }
+            if (/modelo\s*de\s*la\s*ont/.test(rawKey) || /modelo\s*ont/.test(rawKey)) {
+                if (!isEmptyVal) techFields.push(`ONT: ${val}`);
+                return;
+            }
+            if (/^s\/n/.test(rawKey) || /^serial/.test(rawKey)) {
+                if (!isEmptyVal) techFields.push(`S/N: ${val}`);
+                return;
+            }
+            if (/^olt\b/.test(rawKey)) {
+                if (!isEmptyVal) techFields.push(`OLT: ${val}`);
+                return;
+            }
+            if (/posici[oó]n\s*de\s*la\s*ont/.test(rawKey)) {
+                if (!isEmptyVal) techFields.push(`Posición ONT: ${val}`);
+                return;
+            }
+            if (/vlan/.test(rawKey)) {
+                if (!isEmptyVal) techFields.push(`VLAN: ${val}`);
+                return;
+            }
+            if (/estado\s*de\s*los\s*leds/.test(rawKey) || /leds/.test(rawKey)) {
+                if (!isEmptyVal) techFields.push(`LEDs: ${val}`);
+                return;
+            }
+            if (/modo\s*ont/.test(rawKey)) {
+                if (!isEmptyVal) techFields.push(`Modo ONT: ${val}`);
+                return;
+            }
+            if (/valores?\s*de\s*potencia/.test(rawKey)) {
+                if (!isEmptyVal) techFields.push(`Potencia FO: ${val}`);
+                return;
+            }
+            if (/topolog[ií]a/.test(rawKey) || /despu[eé]s\s*de\s*la\s*ont/.test(rawKey)) {
+                if (!isEmptyVal) techFields.push(`Topología post-ONT: ${val}`);
+                return;
+            }
+            if (/ticket\s*reincidente/.test(rawKey)) {
+                if (!isEmptyVal) techFields.push(`Ticket reincidente: ${val}`);
+                return;
+            }
+            if (/ip\s*fija/.test(rawKey) || /ip\s*din[aá]mica/.test(rawKey)) {
+                if (!isEmptyVal) techFields.push(`IP: ${val}`);
+                return;
+            }
+            if (/ip.*fijas/.test(rawKey)) {
+                if (!isEmptyVal) techFields.push(`IPs fijas: ${val}`);
+                return;
+            }
+            if (/saldo\s*actual/.test(rawKey)) {
+                if (!isEmptyVal) techFields.push(`Saldo: ${val}`);
+                return;
+            }
+            if (/fecha\s*l[ií]mite\s*de\s*pago/.test(rawKey)) {
+                if (!isEmptyVal) techFields.push(`Fecha pago: ${val}`);
+                return;
+            }
+            if (/fecha\s*de\s*corte/.test(rawKey)) {
+                if (!isEmptyVal) techFields.push(`Fecha corte: ${val}`);
                 return;
             }
         });
-        
-        if (descLines.length > 0) {
-            parsed.descripcion = descLines.join('\n').trim();
+
+        // Construir la descripción con todos los campos recopilados
+        let descParts = [];
+        if (fallaFields.length > 0) {
+            descParts.push('── DIAGNÓSTICO DE FALLA ──');
+            descParts.push(...fallaFields);
+        }
+        if (techFields.length > 0) {
+            descParts.push('');
+            descParts.push('── DATOS TÉCNICOS ──');
+            descParts.push(...techFields);
+        }
+        if (descParts.length > 0) {
+            parsed.descripcion = descParts.join('\n');
         }
 
-        applyParsedData(parsed, '✅ Texto procesado mediante formato clásico (Sin IA)');
+        // Si no se encontró prioridad, intentar inferir por contexto
+        if (!parsed.prioridad) {
+            const fullText = rawText.toLowerCase();
+            if (fullText.includes('sin servicio') || fullText.includes('sin navegación') || fullText.includes('falla total') || fullText.includes('caída total')) {
+                parsed.prioridad = 'Crítica';
+            } else if (fullText.includes('lento') || fullText.includes('intermitencia')) {
+                parsed.prioridad = 'Media';
+            }
+        }
+
+        // Log para depuración
+        console.log('[Regex Parser] Campos extraídos:', parsed);
+
+        const fieldsFound = Object.keys(parsed).filter(k => parsed[k]).length;
+        applyParsedData(parsed, `✅ Texto procesado (Sin IA) — ${fieldsFound} campos extraídos`);
     };
 
     const applyParsedData = (parsed, successMessage) => {
