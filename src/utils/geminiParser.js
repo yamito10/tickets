@@ -1,3 +1,5 @@
+import { GEMINI_API_KEY } from './config';
+
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
 const SYSTEM_PROMPT = `Eres un asistente experto en soporte técnico de un ISP (Proveedor de Servicios de Internet). 
@@ -27,8 +29,9 @@ Reglas importantes:
 - Los teléfonos deben incluir solo números y el formato original.
 - RESPONDE ÚNICAMENTE CON EL JSON, nada más.`;
 
+
 export async function parseWithGemini(rawText) {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const apiKey = GEMINI_API_KEY;
   
   if (!apiKey) {
     throw new Error('API Key de Gemini no configurada');

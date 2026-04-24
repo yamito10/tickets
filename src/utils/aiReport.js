@@ -1,3 +1,5 @@
+import { GEMINI_API_KEY } from './config';
+
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
 const SYSTEM_PROMPT = `Eres un gerente experto en operaciones técnicas y soporte técnico para un ISP.
@@ -15,8 +17,9 @@ NO uses estilos en línea complejos, asume que el contenedor padre le dará un e
 
 NO incluyas bloques de código en tu respuesta, devuelve directamente el HTML. No uses backticks de markdown.`;
 
+
 export async function generateAiReport(tickets) {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const apiKey = GEMINI_API_KEY;
   
   if (!apiKey) {
     throw new Error('API Key de Gemini no configurada');
