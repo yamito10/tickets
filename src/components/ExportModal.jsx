@@ -1,18 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { FileSpreadsheet, X, Copy, Download, Sparkles, Loader2 } from 'lucide-react';
+import { FileSpreadsheet, X, Copy, Download } from 'lucide-react';
 import { generateExcelReport, copyToClipboardTSV } from '../utils/excelExport';
-import { generateAiReport } from '../utils/aiReport';
-import AiReportModal from './AiReportModal';
 
 export default function ExportModal({ isVisible, onClose, tickets, showToast }) {
     const [startVal, setStartVal] = useState('');
     const [endVal, setEndVal] = useState('');
     const [statusFilter, setStatusFilter] = useState('Todos');
     const [clientFilter, setClientFilter] = useState('');
-    
-    // Estados para el reporte de IA
-    const [isGeneratingAi, setIsGeneratingAi] = useState(false);
-    const [aiHtml, setAiHtml] = useState(null);
 
     useEffect(() => {
         if (isVisible) {
@@ -84,27 +78,6 @@ export default function ExportModal({ isVisible, onClose, tickets, showToast }) 
         }
     };
 
-    const handleGenerateAi = async () => {
-        if (tickets.length === 0) {
-            showToast('No hay tickets en la base de datos', true);
-            return;
-        }
-        const filtered = getFilteredTickets();
-        if (!filtered) return;
-
-        setIsGeneratingAi(true);
-        try {
-            const html = await generateAiReport(filtered);
-            setAiHtml(html);
-            showToast('✨ Reporte Inteligente generado con éxito');
-        } catch (error) {
-            console.error('Error con IA:', error);
-            showToast(error.message || 'Error al generar reporte con IA', true);
-        } finally {
-            setIsGeneratingAi(false);
-        }
-    };
-
     return (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-slide-up">
@@ -142,28 +115,17 @@ export default function ExportModal({ isVisible, onClose, tickets, showToast }) 
                     </div>
                 </form>
                 <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-wrap justify-end gap-3">
-                    <button onClick={onClose} type="button" className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-200 transition-colors mr-auto" disabled={isGeneratingAi}>Cancelar</button>
+                    <button onClick={onClose} type="button" className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-200 transition-colors mr-auto">Cancelar</button>
                     
-                    <button onClick={handleGenerateAi} disabled={isGeneratingAi} type="button" className="px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white transition-all shadow-sm flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
-                        {isGeneratingAi ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                        Reporte Inteligente IA
-                    </button>
-                    
-                    <button onClick={handleCopyTSV} disabled={isGeneratingAi} type="button" className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-sm flex items-center gap-2">
+                    <button onClick={handleCopyTSV} type="button" className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-sm flex items-center gap-2">
                         <Copy className="w-4 h-4" /> Copiar Datos
                     </button>
                     
-                    <button type="submit" form="export-form" disabled={isGeneratingAi} className="px-4 py-2 rounded-lg text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-sm flex items-center gap-2">
+                    <button type="submit" form="export-form" className="px-4 py-2 rounded-lg text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-sm flex items-center gap-2">
                         <Download className="w-4 h-4" /> Excel
                     </button>
                 </div>
             </div>
-
-            <AiReportModal 
-                isVisible={!!aiHtml} 
-                onClose={() => setAiHtml(null)} 
-                htmlContent={aiHtml} 
-            />
         </div>
     );
 }
